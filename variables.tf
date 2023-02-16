@@ -25,3 +25,7 @@ variable "private_availability_zones" {
 variable "vpc_id" {
   type = number
 }
+
+variable "profile" {
+  type = string
+}
