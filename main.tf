@@ -13,7 +13,7 @@ data "aws_availability_zones" "all" {
 
 # Creating public subnet
 resource "aws_subnet" "public_subnet" {
-  count             = var.public_subnet
+  count             =   var.public_subnet
   vpc_id            = aws_vpc.vpc.id
   cidr_block        = cidrsubnet(var.cidr_block, 8, count.index)
   availability_zone = element(data.aws_availability_zones.all.names, count.index % length(data.aws_availability_zones.all.names))
