@@ -26,22 +26,28 @@ terraform apply
 ## Sample Data
 
 ```
+// provide cidr range
 var.cidr_block  
     Enter a value: 10.0.0.0/16
 
+// providing number of private availability zones required
 var.private_availability_zones 
-    Enter a value: ["us-east-1a","us-east-1b","us-east-1c"]
+    Enter a value: 3
 
+// providing number of private subnets to be created
 var.private_subnet
-    Enter a value: ["10.0.4.0/24","10.0.5.0/24","10.0.6.0/24"]
+    Enter a value: 3
 
+// providing number of public availability zones required
 var.public_availability_zones  
-    Enter a value: ["us-east-1a","us-east-1b","us-east-1c"]
+    Enter a value: 3
 
+// providing number of public subnets to be created
 var.public_subnet  
-    Enter a value: ["10.0.1.0/24","10.0.2.0/24","10.0.3.0/24"]
+    Enter a value: 3
     
+// region in which VPC gets created
 var.region  
-    Enter a value: us-east-1
+    Enter a value: us-east-1 || us-west-2
 
 ```

@@ -7,17 +7,21 @@ variable "cidr_block" {
 }
 
 variable "public_subnet" {
-  type = list(string)
+  type = number
 }
 
 variable "private_subnet" {
-  type = list(string)
+  type = number
 }
 
 variable "public_availability_zones" {
-  type = list(string)
+  type = number
 }
 
 variable "private_availability_zones" {
-  type = list(string)
+  type = number
+}
+
+variable "vpc_id" {
+  type = number
 }
