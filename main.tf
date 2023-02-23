@@ -74,3 +74,91 @@ resource "aws_route_table_association" "aws_private_route_table_association" {
   subnet_id      = aws_subnet.private_subnet[count.index].id
   route_table_id = aws_route_table.private_route_table.id
 }
+
+resource "aws_security_group" "application" {
+  name        = "application"
+  description = "Allow TLS inbound/outbound traffic"
+  vpc_id      = aws_vpc.vpc.id
+
+  ingress {
+    description = "TLS from VPC"
+    from_port   = 22
+    to_port     = 22
+    protocol    = "tcp"
+    cidr_blocks = ["0.0.0.0/0"]
+  }
+
+  ingress {
+    description = "TLS from VPC"
+    from_port   = 80
+    to_port     = 80
+    protocol    = "tcp"
+    cidr_blocks = ["0.0.0.0/0"]
+  }
+
+  ingress {
+    description = "TLS from VPC"
+    from_port   = 443
+    to_port     = 443
+    protocol    = "tcp"
+    cidr_blocks = ["0.0.0.0/0"]
+  }
+
+  ingress {
+    description = "TLS from VPC"
+    from_port   = 8080
+    to_port     = 8080
+    protocol    = "tcp"
+    cidr_blocks = ["0.0.0.0/0"]
+  }
+
+  egress {
+    from_port   = 0
+    to_port     = 0
+    protocol    = "-1"
+    cidr_blocks = ["0.0.0.0/0"]
+  }
+
+  tags = {
+    Name = "allow_tls"
+  }
+}
+
+
+resource "aws_instance" "webapp" {
+  ami                         = var.ami_id
+  instance_type               = "t2.micro"
+  disable_api_termination     = true
+  associate_public_ip_address = true
+  # availability_zone            = "us-west-2c"
+
+  security_groups = [
+    aws_security_group.application.id
+  ]
+
+  source_dest_check = true
+
+  subnet_id = aws_subnet.public_subnet[0].id
+  tags = {
+    "Name" = "MyWebappServer"
+  }
+
+  tenancy = "default"
+
+  vpc_security_group_ids = [
+    aws_security_group.application.id
+  ]
+
+  metadata_options {
+    http_endpoint               = "enabled"
+    http_put_response_hop_limit = 1
+    http_tokens                 = "optional"
+  }
+
+  root_block_device {
+    delete_on_termination = true
+    volume_size           = 50
+    volume_type           = "gp2"
+  }
+
+}
