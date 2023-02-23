@@ -29,7 +29,3 @@ variable "vpc_id" {
 variable "profile" {
   type = string
 }
-
-variable "ami_id" {
-  type = string
-}

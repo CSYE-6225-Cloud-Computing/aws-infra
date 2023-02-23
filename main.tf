@@ -124,9 +124,19 @@ resource "aws_security_group" "application" {
   }
 }
 
+data "aws_ami" "amzLinux" {
+  most_recent = true
+  filter {
+    name   = "name"
+    values = ["csye6225*"]
+  }
+}
+
 
 resource "aws_instance" "webapp" {
-  ami                         = var.ami_id
+  ami = data.aws_ami.amzLinux.id
+
+
   instance_type               = "t2.micro"
   disable_api_termination     = true
   associate_public_ip_address = true
@@ -148,6 +158,10 @@ resource "aws_instance" "webapp" {
   vpc_security_group_ids = [
     aws_security_group.application.id
   ]
+
+  lifecycle {
+    prevent_destroy = false
+  }
 
   metadata_options {
     http_endpoint               = "enabled"

@@ -13,5 +13,3 @@ private_availability_zones = 3
 vpc_id = 1
 
 profile = "dev"
-
-ami_id = "ami-02fe4da8d4df04d5d"
