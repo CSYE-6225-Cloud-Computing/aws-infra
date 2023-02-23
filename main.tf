@@ -135,12 +135,9 @@ data "aws_ami" "amzLinux" {
 
 resource "aws_instance" "webapp" {
   ami = data.aws_ami.amzLinux.id
-
-
   instance_type               = "t2.micro"
   disable_api_termination     = true
   associate_public_ip_address = true
-  # availability_zone            = "us-west-2c"
 
   security_groups = [
     aws_security_group.application.id
