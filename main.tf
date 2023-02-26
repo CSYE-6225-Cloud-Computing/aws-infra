@@ -173,3 +173,65 @@ resource "aws_instance" "webapp" {
   }
 
 }
+
+resource "aws_security_group" "database" {
+  name = "database"
+
+  description = "RDS Security Group for webapp"
+  vpc_id      = aws_vpc.vpc.id
+
+  # Only MySQL in
+  ingress {
+    from_port       = 5432
+    to_port         = 5432
+    protocol        = "tcp"
+    security_groups = [aws_security_group.application.id]
+  }
+
+}
+
+resource "aws_s3_bucket" "bucket" {
+  bucket        = "bucket ${var.profile}"
+  force_destroy = true
+
+  tags = {
+    Name        = "bucket ${var.profile}"
+    Environment = "${var.profile}"
+  }
+}
+
+resource "aws_s3_bucket_acl" "s3_bucket_acl" {
+  bucket = aws_s3_bucket.bucket.id
+  acl    = "private"
+
+  server_side_encryption_configuration {
+    rule {
+      apply_server_side_encryption_by_default {
+        sse_algorithm = "AES256"
+      }
+    }
+  }
+}
+
+# lifecycle configuration
+resource "aws_s3_bucket_lifecycle_configuration" "versioning-bucket-config" {
+  # Must have bucket versioning enabled first
+  depends_on = [aws_s3_bucket_versioning.versioning]
+
+  bucket = aws_s3_bucket.versioning_bucket.id
+
+  rule {
+    id = "config"
+
+    filter {
+      prefix = "config/"
+    }
+
+    noncurrent_version_transition {
+      noncurrent_days = 30
+      storage_class   = "STANDARD_IA"
+    }
+
+    status = "Enabled"
+  }
+}
