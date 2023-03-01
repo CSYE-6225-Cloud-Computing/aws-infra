@@ -132,12 +132,19 @@ data "aws_ami" "amzLinux" {
   }
 }
 
+resource "aws_key_pair" "ssh_key" {
+  key_name   = "webapp_ssh"
+  public_key = var.rsa_public
+}
 
 resource "aws_instance" "webapp" {
   ami                         = data.aws_ami.amzLinux.id
   instance_type               = "t2.micro"
-  disable_api_termination     = true
+  disable_api_termination     = false
   associate_public_ip_address = true
+  user_data                   = templatefile("user_data.sh", { db_host = aws_db_instance.csye6225.address, db_port = aws_db_instance.csye6225.port, db_user = aws_db_instance.csye6225.username, db_pwd = var.db_password, db = aws_db_instance.csye6225.db_name, db_engine = aws_db_instance.csye6225.engine, s3_bucket = aws_s3_bucket.s3.bucket, s3_region = aws_s3_bucket.s3.region, check = "testing" })
+
+  key_name = aws_key_pair.ssh_key.key_name
 
   security_groups = [
     aws_security_group.application.id
@@ -171,5 +178,94 @@ resource "aws_instance" "webapp" {
     volume_size           = 50
     volume_type           = "gp2"
   }
+}
 
+resource "aws_security_group" "database" {
+  name = "database"
+
+  description = "RDS Security Group for webapp"
+  vpc_id      = aws_vpc.vpc.id
+
+  # Only Postgres in
+  ingress {
+    from_port       = 5432
+    to_port         = 5432
+    protocol        = "tcp"
+    security_groups = [aws_security_group.application.id]
+  }
+
+}
+
+resource "aws_s3_bucket" "s3" {
+  bucket        = "webapp-s3-bucket-${var.profile}-${random_uuid.uuid.result}"
+  force_destroy = true
+  tags = {
+    Name        = "bucket ${var.profile}"
+    Environment = "${var.profile}"
+  }
+
+}
+
+resource "random_uuid" "uuid" {}
+
+resource "aws_s3_bucket_acl" "s3_bucket_acl" {
+  bucket = aws_s3_bucket.s3.id
+  acl    = "private"
+}
+
+resource "aws_s3_bucket_server_side_encryption_configuration" "s3_encryption" {
+
+  bucket = aws_s3_bucket.s3.id
+  rule {
+    apply_server_side_encryption_by_default {
+      sse_algorithm = "AES256"
+    }
+  }
+}
+
+# lifecycle configuration
+resource "aws_s3_bucket_lifecycle_configuration" "s3_bucket_config" {
+
+  bucket = aws_s3_bucket.s3.id
+
+  rule {
+    id     = "config"
+    status = "Enabled"
+
+    transition {
+      days          = 30
+      storage_class = "STANDARD_IA"
+    }
+  }
+}
+
+resource "aws_db_parameter_group" "aws_db_pg" {
+  name   = "my-pg"
+  family = "postgres14"
+
+}
+
+resource "aws_db_instance" "csye6225" {
+  identifier        = "csye6225"
+  engine            = var.db_engine
+  engine_version    = var.db_version
+  instance_class    = "db.t3.micro"
+  allocated_storage = 10
+
+  db_name              = var.db_name
+  username             = var.db_username
+  password             = var.db_password
+  parameter_group_name = aws_db_parameter_group.aws_db_pg.name
+
+  multi_az               = false
+  apply_immediately      = true
+  publicly_accessible    = false
+  db_subnet_group_name   = aws_db_subnet_group.pgsubnetgrp.name
+  vpc_security_group_ids = [aws_security_group.database.id]
+}
+
+
+resource "aws_db_subnet_group" "pgsubnetgrp" {
+  name       = "subnet-pg"
+  subnet_ids = [aws_subnet.private_subnet[0].id, aws_subnet.private_subnet[1].id]
 }

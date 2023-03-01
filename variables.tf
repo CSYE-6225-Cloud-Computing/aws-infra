@@ -29,3 +29,30 @@ variable "vpc_id" {
 variable "profile" {
   type = string
 }
+
+variable "db_username" {
+  type      = string
+  sensitive = true
+}
+
+variable "db_password" {
+  type      = string
+  sensitive = true
+}
+
+variable "db_name" {
+  type = string
+}
+
+variable "db_engine" {
+  type = string
+}
+
+variable "db_version" {
+  type = string
+}
+
+variable "rsa_public" {
+  type      = string
+  sensitive = true
+}
