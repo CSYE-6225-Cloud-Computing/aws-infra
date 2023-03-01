@@ -203,6 +203,7 @@ resource "aws_s3_bucket" "s3" {
     Name        = "bucket ${var.profile}"
     Environment = "${var.profile}"
   }
+
 }
 
 resource "random_uuid" "uuid" {}
@@ -210,6 +211,16 @@ resource "random_uuid" "uuid" {}
 resource "aws_s3_bucket_acl" "s3_bucket_acl" {
   bucket = aws_s3_bucket.s3.id
   acl    = "private"
+}
+
+resource "aws_s3_bucket_server_side_encryption_configuration" "s3_encryption" {
+
+  bucket = aws_s3_bucket.s3.id
+  rule {
+    apply_server_side_encryption_by_default {
+      sse_algorithm = "AES256"
+    }
+  }
 }
 
 # lifecycle configuration
@@ -235,15 +246,17 @@ resource "aws_db_parameter_group" "aws_db_pg" {
 }
 
 resource "aws_db_instance" "csye6225" {
-  allocated_storage      = 10
-  db_name                = var.db_name
-  engine                 = var.db_engine
-  engine_version         = var.db_version
-  instance_class         = "db.t3.micro"
-  username               = var.db_username
-  password               = var.db_password
-  parameter_group_name   = aws_db_parameter_group.aws_db_pg.name
-  skip_final_snapshot    = true
+  identifier        = "csye6225"
+  engine            = var.db_engine
+  engine_version    = var.db_version
+  instance_class    = "db.t3.micro"
+  allocated_storage = 10
+
+  db_name              = var.db_name
+  username             = var.db_username
+  password             = var.db_password
+  parameter_group_name = aws_db_parameter_group.aws_db_pg.name
+
   multi_az               = false
   apply_immediately      = true
   publicly_accessible    = false
