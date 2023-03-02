@@ -142,10 +142,10 @@ resource "aws_instance" "webapp" {
   instance_type               = "t2.micro"
   disable_api_termination     = false
   associate_public_ip_address = true
-  user_data                   = templatefile("user_data.sh", { db_host = aws_db_instance.csye6225.address, db_port = aws_db_instance.csye6225.port, db_user = aws_db_instance.csye6225.username, db_pwd = var.db_password, db = aws_db_instance.csye6225.db_name, db_engine = aws_db_instance.csye6225.engine, s3_bucket = aws_s3_bucket.s3.bucket, s3_region = aws_s3_bucket.s3.region, check = "testing" })
+  user_data                   = templatefile("user_data.sh", { db_host = aws_db_instance.csye6225.address, db_port = aws_db_instance.csye6225.port, db_user = aws_db_instance.csye6225.username, db_pwd = var.db_password, db = aws_db_instance.csye6225.db_name, db_engine = aws_db_instance.csye6225.engine, s3_bucket = aws_s3_bucket.s3.bucket, s3_region = aws_s3_bucket.s3.region })
 
-  key_name = aws_key_pair.ssh_key.key_name
-
+  iam_instance_profile = aws_iam_instance_profile.web_instance_profile.id
+  key_name             = aws_key_pair.ssh_key.key_name
   security_groups = [
     aws_security_group.application.id
   ]
@@ -178,6 +178,57 @@ resource "aws_instance" "webapp" {
     volume_size           = 50
     volume_type           = "gp2"
   }
+}
+
+
+resource "aws_iam_policy" "webapp_s3" {
+  name        = "WebAppS3"
+  description = "Allows EC2 instances to perform S3 bucket operations"
+
+  policy = <<POLICY
+{
+  "Version": "2012-10-17",
+  "Statement": [
+    {
+      "Effect": "Allow",
+      "Action": [
+        "s3:PutObject",
+        "s3:GetObject",
+        "s3:DeleteObject"
+      ],
+      "Resource": [
+        "arn:aws:s3:::${aws_s3_bucket.s3.bucket}",
+        "arn:aws:s3:::${aws_s3_bucket.s3.bucket}/*"
+      ]
+    }
+  ]
+}
+POLICY
+}
+
+
+resource "aws_iam_role" "ec2_csye6225" {
+  name = "EC2-CSYE6225"
+  assume_role_policy = jsonencode({
+    Version = "2012-10-17"
+    Statement = [
+      {
+        Effect    = "Allow"
+        Principal = { Service = "ec2.amazonaws.com" }
+        Action    = "sts:AssumeRole"
+      }
+    ]
+  })
+}
+
+resource "aws_iam_role_policy_attachment" "webapp_s3_policy_attachment" {
+  policy_arn = aws_iam_policy.webapp_s3.arn
+  role       = aws_iam_role.ec2_csye6225.name
+}
+
+resource "aws_iam_instance_profile" "web_instance_profile" {
+  name = "web_instance_profile"
+  role = aws_iam_role.ec2_csye6225.name
 }
 
 resource "aws_security_group" "database" {
@@ -256,6 +307,7 @@ resource "aws_db_instance" "csye6225" {
   username             = var.db_username
   password             = var.db_password
   parameter_group_name = aws_db_parameter_group.aws_db_pg.name
+  skip_final_snapshot  = true
 
   multi_az               = false
   apply_immediately      = true
