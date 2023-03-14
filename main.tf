@@ -200,6 +200,17 @@ resource "aws_iam_policy" "webapp_s3" {
         "arn:aws:s3:::${aws_s3_bucket.s3.bucket}",
         "arn:aws:s3:::${aws_s3_bucket.s3.bucket}/*"
       ]
+    },
+    {
+      "Effect": "Allow",
+      "Action": [
+        "route53:GetHostedZone",
+        "route53:ListResourceRecordSets"
+      ],
+      "Resource": [
+        data.aws_route53_zone.hosted_zone.arn,
+          "${data.aws_route53_zone.hosted_zone.arn}/*"
+      ]
     }
   ]
 }
@@ -225,6 +236,7 @@ resource "aws_iam_role_policy_attachment" "webapp_s3_policy_attachment" {
   policy_arn = aws_iam_policy.webapp_s3.arn
   role       = aws_iam_role.ec2_csye6225.name
 }
+
 
 resource "aws_iam_instance_profile" "web_instance_profile" {
   name = "web_instance_profile"
@@ -262,6 +274,15 @@ resource "random_uuid" "uuid" {}
 resource "aws_s3_bucket_acl" "s3_bucket_acl" {
   bucket = aws_s3_bucket.s3.id
   acl    = "private"
+}
+
+resource "aws_s3_bucket_public_access_block" "s3_bucket_access" {
+  bucket = aws_s3_bucket.s3.id
+
+  block_public_acls       = true
+  block_public_policy     = true
+  ignore_public_acls      = true
+  restrict_public_buckets = true
 }
 
 resource "aws_s3_bucket_server_side_encryption_configuration" "s3_encryption" {
@@ -321,3 +342,20 @@ resource "aws_db_subnet_group" "pgsubnetgrp" {
   name       = "subnet-pg"
   subnet_ids = [aws_subnet.private_subnet[0].id, aws_subnet.private_subnet[1].id]
 }
+
+data "aws_route53_zone" "hosted_zone" {
+  name = var.domain_name
+  private_zone = false
+}
+
+resource "aws_route53_record" "hosted_record" {
+  zone_id = data.aws_route53_zone.hosted_zone.zone_id
+  name    = var.domain_name
+  type    = "A"
+  ttl     = "60"
+  records = ["${aws_instance.webapp.public_ip}"]
+}
+
+
+
+
