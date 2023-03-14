@@ -344,7 +344,7 @@ resource "aws_db_subnet_group" "pgsubnetgrp" {
 }
 
 data "aws_route53_zone" "hosted_zone" {
-  name = var.domain_name
+  name         = var.domain_name
   private_zone = false
 }
 
