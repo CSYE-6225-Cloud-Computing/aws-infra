@@ -200,17 +200,6 @@ resource "aws_iam_policy" "webapp_s3" {
         "arn:aws:s3:::${aws_s3_bucket.s3.bucket}",
         "arn:aws:s3:::${aws_s3_bucket.s3.bucket}/*"
       ]
-    },
-    {
-      "Effect": "Allow",
-      "Action": [
-        "route53:GetHostedZone",
-        "route53:ListResourceRecordSets"
-      ],
-      "Resource": [
-        data.aws_route53_zone.hosted_zone.arn,
-          "${data.aws_route53_zone.hosted_zone.arn}/*"
-      ]
     }
   ]
 }
