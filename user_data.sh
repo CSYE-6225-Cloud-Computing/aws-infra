@@ -11,6 +11,8 @@ DB_PORT=${db_port}
 AWS_BUCKET_NAME=${s3_bucket}
 AWS_BUCKET_REGION=${s3_region}
 
+EC2_IP_ADDRESS=${ec2_ip}
+
 PORT="8080"
 
 EOF
