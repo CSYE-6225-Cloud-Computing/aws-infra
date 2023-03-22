@@ -142,7 +142,7 @@ resource "aws_instance" "webapp" {
   instance_type               = "t2.micro"
   disable_api_termination     = false
   associate_public_ip_address = true
-  user_data                   = templatefile("user_data.sh", { db_host = aws_db_instance.csye6225.address, db_port = aws_db_instance.csye6225.port, db_user = aws_db_instance.csye6225.username, db_pwd = var.db_password, db = aws_db_instance.csye6225.db_name, db_engine = aws_db_instance.csye6225.engine, s3_bucket = aws_s3_bucket.s3.bucket, s3_region = aws_s3_bucket.s3.region })
+  user_data                   = templatefile("user_data.sh", { db_host = aws_db_instance.csye6225.address, db_port = aws_db_instance.csye6225.port, db_user = aws_db_instance.csye6225.username, db_pwd = var.db_password, db = aws_db_instance.csye6225.db_name, db_engine = aws_db_instance.csye6225.engine, s3_bucket = aws_s3_bucket.s3.bucket, s3_region = aws_s3_bucket.s3.region, ec2_ip = aws_instance.webapp.public_ip })
 
   iam_instance_profile = aws_iam_instance_profile.web_instance_profile.id
   key_name             = aws_key_pair.ssh_key.key_name
@@ -226,6 +226,10 @@ resource "aws_iam_role_policy_attachment" "webapp_s3_policy_attachment" {
   role       = aws_iam_role.ec2_csye6225.name
 }
 
+resource "aws_iam_role_policy_attachment" "cloudwatch_policy_attachment" {
+  policy_arn = "arn:aws:iam::aws:policy/CloudWatchAgentServerPolicy"
+  role       = aws_iam_role.ec2_csye6225.name
+}
 
 resource "aws_iam_instance_profile" "web_instance_profile" {
   name = "web_instance_profile"
