@@ -86,30 +86,31 @@ resource "aws_security_group" "application" {
     to_port     = 22
     protocol    = "tcp"
     cidr_blocks = ["0.0.0.0/0"]
+    # security_groups = [aws_security_group.load_balancer.id]
   }
 
-  ingress {
-    description = "TLS from VPC"
-    from_port   = 80
-    to_port     = 80
-    protocol    = "tcp"
-    cidr_blocks = ["0.0.0.0/0"]
-  }
+  # ingress {
+  #   description = "TLS from VPC"
+  #   from_port   = 80
+  #   to_port     = 80
+  #   protocol    = "tcp"
+  #   cidr_blocks = ["0.0.0.0/0"]
+  # }
+
+  # ingress {
+  #   description = "TLS from VPC"
+  #   from_port   = 443
+  #   to_port     = 443
+  #   protocol    = "tcp"
+  #   cidr_blocks = ["0.0.0.0/0"]
+  # }
 
   ingress {
-    description = "TLS from VPC"
-    from_port   = 443
-    to_port     = 443
-    protocol    = "tcp"
-    cidr_blocks = ["0.0.0.0/0"]
-  }
-
-  ingress {
-    description = "TLS from VPC"
-    from_port   = 8080
-    to_port     = 8080
-    protocol    = "tcp"
-    cidr_blocks = ["0.0.0.0/0"]
+    description     = "TLS from VPC"
+    from_port       = 8080
+    to_port         = 8080
+    protocol        = "tcp"
+    security_groups = [aws_security_group.load_balancer_sg.id]
   }
 
   egress {
@@ -136,50 +137,6 @@ resource "aws_key_pair" "ssh_key" {
   key_name   = "webapp_ssh"
   public_key = var.rsa_public
 }
-
-resource "aws_instance" "webapp" {
-  ami                     = data.aws_ami.amzLinux.id
-  instance_type           = "t2.micro"
-  disable_api_termination = false
-  # associate_public_ip_address = true
-  user_data = templatefile("user_data.sh", { db_host = aws_db_instance.csye6225.address, db_port = aws_db_instance.csye6225.port, db_user = aws_db_instance.csye6225.username, db_pwd = var.db_password, db = aws_db_instance.csye6225.db_name, db_engine = aws_db_instance.csye6225.engine, s3_bucket = aws_s3_bucket.s3.bucket, s3_region = aws_s3_bucket.s3.region })
-
-  iam_instance_profile = aws_iam_instance_profile.web_instance_profile.id
-  key_name             = aws_key_pair.ssh_key.key_name
-  security_groups = [
-    aws_security_group.application.id
-  ]
-
-  source_dest_check = true
-
-  subnet_id = aws_subnet.public_subnet[0].id
-  tags = {
-    "Name" = "MyWebappServer"
-  }
-
-  tenancy = "default"
-
-  vpc_security_group_ids = [
-    aws_security_group.application.id
-  ]
-
-  lifecycle {
-    prevent_destroy = false
-  }
-
-  metadata_options {
-    http_endpoint               = "enabled"
-    http_put_response_hop_limit = 1
-    http_tokens                 = "optional"
-  }
-
-  root_block_device {
-    delete_on_termination = true
-    volume_size           = 50
-    volume_type           = "gp2"
-  }
-}
-
 
 resource "aws_iam_policy" "webapp_s3" {
   name        = "WebAppS3"
@@ -336,131 +293,191 @@ resource "aws_db_subnet_group" "pgsubnetgrp" {
 }
 
 data "aws_route53_zone" "hosted_zone" {
-  name         = var.domain_name
-  private_zone = false
+  name = "${var.profile}.${var.domain_name}"
 }
 
 resource "aws_route53_record" "hosted_record" {
   zone_id = data.aws_route53_zone.hosted_zone.zone_id
-  name    = var.domain_name
+  name    = "${var.profile}.${var.domain_name}"
   type    = "A"
-  ttl     = "60"
-  records = ["${aws_instance.webapp.public_ip}"]
+  alias {
+    name                   = aws_lb.webapp_lb.dns_name
+    zone_id                = aws_lb.webapp_lb.zone_id
+    evaluate_target_health = true
+  }
 }
+resource "aws_security_group" "load_balancer_sg" {
 
-
-resource "aws_security_group" "load_balancer" {
-  name_prefix = "webapp-lb-sg-"
-  description = "Security group for load balancer"
+  name        = "load_balancer_sg"
+  description = "Allow TLS inbound/outbound traffic"
+  vpc_id      = aws_vpc.vpc.id
 
   ingress {
+    description = "TLS from VPC"
     from_port   = 80
     to_port     = 80
     protocol    = "tcp"
     cidr_blocks = ["0.0.0.0/0"]
   }
-
   ingress {
+    description = "TLS from VPC"
     from_port   = 443
     to_port     = 443
     protocol    = "tcp"
     cidr_blocks = ["0.0.0.0/0"]
   }
+
+  egress {
+    from_port   = 0
+    to_port     = 0
+    protocol    = "-1"
+    cidr_blocks = ["0.0.0.0/0"]
+  }
 }
 
-resource "aws_launch_configuration" "asg_launch_config" {
-  image_id                    = aws_instance.webapp.ami
-  instance_type               = "t2.micro"
-  key_name                    = aws_instance.webapp.key_name
-  associate_public_ip_address = true
-  user_data                   = aws_instance.webapp.user_data
-  iam_instance_profile        = aws_instance.webapp.iam_instance_profile
-  security_groups = [
-    aws_security_group.application.id,
-  ]
+resource "aws_lb_target_group" "webapp_target" {
+  name     = "webapptarget"
+  port     = 8080
+  protocol = "HTTP"
+  vpc_id   = aws_vpc.vpc.id
+  health_check {
+    path     = "/healthz"
+    interval = 30
+  }
 }
 
-resource "aws_autoscaling_group" "webapp_asg" {
-  name = "webapp-asg"
-  # cooldown             = 60
-  launch_configuration = aws_launch_configuration.asg_launch_config.name
-  min_size             = 1
-  max_size             = 3
-  desired_capacity     = 1
-}
-
-# resource "aws_appautoscaling_policy" "scale_up_policy" {
-#   name               = "scale-up-policy"
-#   policy_type        = "StepScaling"
-#   resource_id        = "autoscaling:autoScalingGroup:${aws_autoscaling_group.webapp_asg.id}"
-#   scalable_dimension = "autoscaling:autoScalingGroup:DesiredCapacity"
-#   service_namespace  = aws_autoscaling_group.webapp_asg.name
-#   step_scaling_policy_configuration {
-#     adjustment_type         = "ChangeInCapacity"
-#     cooldown                = 60
-#     metric_aggregation_type = "Average"
-
-#     step_adjustment {
-#       metric_interval_lower_bound = 0
-#       scaling_adjustment          = 1
-#     }
-
-#   }
-# }
-
-resource "aws_autoscaling_policy" "scale_up_policy" {
-  name                   = "scale-down-policy"
-  scaling_adjustment     = 1
-  cooldown               = 60
-  autoscaling_group_name = aws_autoscaling_group.webapp_asg.name
-}
-
-resource "aws_autoscaling_policy" "scale_down_policy" {
-  name                   = "scale-down-policy"
-  scaling_adjustment     = -1
-  cooldown               = 60
-  autoscaling_group_name = aws_autoscaling_group.webapp_asg.name
-
-}
 
 resource "aws_lb" "webapp_lb" {
-  name               = "web-app-lb"
-  internal           = false
-  load_balancer_type = "application"
-  security_groups    = [aws_security_group.load_balancer.id]
-
-  subnets = [
-    aws_subnet.public_subnet[0].id,
-    aws_subnet.public_subnet[1].id,
-  ]
-
-  tags = {
-    Name = "web-app-lb"
-  }
-
+  name                       = "webapplb"
+  internal                   = false
+  load_balancer_type         = "application"
+  security_groups            = [aws_security_group.load_balancer_sg.id]
+  subnets                    = [aws_subnet.public_subnet[0].id, aws_subnet.public_subnet[1].id, aws_subnet.public_subnet[2].id]
+  enable_deletion_protection = false
 }
-
-resource "aws_lb_listener" "webapp_listener" {
+#
+resource "aws_lb_listener" "webapp_listner" {
   load_balancer_arn = aws_lb.webapp_lb.arn
   port              = "80"
   protocol          = "HTTP"
-
   default_action {
     type             = "forward"
-    target_group_arn = aws_lb_target_group.webapp_listener_target_group.arn
+    target_group_arn = aws_lb_target_group.webapp_target.arn
   }
 }
 
-resource "aws_lb_target_group" "webapp_listener_target_group" {
-  name     = "webapp-listener-target-group"
-  port     = 8080
-  protocol = "HTTP"
 
-  health_check {
-    path = "/healthz"
+resource "aws_launch_template" "webapp_template" {
+  name          = "webapp_lauch_template"
+  image_id      = data.aws_ami.amzLinux.id
+  instance_type = "t2.micro"
+  block_device_mappings {
+    device_name = "/dev/xvda"
+    ebs {
+      volume_size           = 8
+      volume_type           = "gp2"
+      delete_on_termination = true
+    }
+
   }
 
-  target_type = "instance"
+  network_interfaces {
+    associate_public_ip_address = true
+    device_index                = 0
+    security_groups             = [aws_security_group.application.id]
+    subnet_id                   = aws_subnet.public_subnet[0].id
+  }
 
-  vpc_id = aws_vpc.vpc.id
+  iam_instance_profile {
+    name = aws_iam_instance_profile.web_instance_profile.name
+  }
+
+  user_data = base64encode(templatefile("user_data.sh", {
+    db_host   = aws_db_instance.csye6225.address,
+    db_port   = aws_db_instance.csye6225.port,
+    db_user   = aws_db_instance.csye6225.username,
+    db_pwd    = var.db_password,
+    db        = aws_db_instance.csye6225.db_name,
+    db_engine = aws_db_instance.csye6225.engine,
+    s3_bucket = aws_s3_bucket.s3.bucket,
+  s3_region = aws_s3_bucket.s3.region }))
+
+  lifecycle {
+    prevent_destroy = false
+  }
+
+}
+resource "aws_autoscaling_group" "webapp_autoScaling_grp" {
+  name             = "webapp_autoScaling_grp"
+  min_size         = 1
+  max_size         = 3
+  default_cooldown = 60
+  launch_template {
+    version = "$Latest"
+    name = aws_launch_template.webapp_template.name
+  }
+  target_group_arns = [aws_lb_target_group.webapp_target.arn]
+  vpc_zone_identifier = [aws_subnet.public_subnet[0].id]
+}
+
+resource "aws_autoscaling_attachment" "webapp_autoScaling_attachment" {
+  autoscaling_group_name = aws_autoscaling_group.webapp_autoScaling_grp.name
+  lb_target_group_arn    = aws_lb_target_group.webapp_target.arn
+}
+
+resource "aws_cloudwatch_metric_alarm" "high_cpu_alarm" {
+  alarm_name          = "high-cpu-alarm"
+  comparison_operator = "GreaterThanThreshold"
+  evaluation_periods  = 1
+  metric_name         = "CPUUtilization"
+  namespace           = "AWS/EC2"
+  period              = 60
+  statistic           = "Average"
+  threshold           = 4
+  alarm_description   = "This metric checks if CPU usage is higher than 4% for the past 2 minutes"
+  alarm_actions       = [aws_autoscaling_policy.scale_up_policy.arn]
+  actions_enabled     = true
+  dimensions = {
+    AutoScalingGroupName = aws_autoscaling_group.webapp_autoScaling_grp.name
+  }
+}
+resource "aws_cloudwatch_metric_alarm" "low_cpu_alarm" {
+  alarm_name          = "low-cpu-alarm"
+  comparison_operator = "LessThanThreshold"
+  evaluation_periods  = 1
+  metric_name         = "CPUUtilization"
+  namespace           = "AWS/EC2"
+  period              = 60
+  statistic           = "Average"
+  threshold           = 3
+  alarm_description   = "This metric checks if CPU usage is lower than 3% for the past 2 minutes"
+  alarm_actions       = [aws_autoscaling_policy.scale_down_policy.arn]
+  actions_enabled     = true
+  dimensions = {
+    AutoScalingGroupName = aws_autoscaling_group.webapp_autoScaling_grp.name
+  }
+}
+
+resource "aws_autoscaling_policy" "scale_up_policy" {
+  name                   = "scale-up-policy"
+  policy_type            = "SimpleScaling"
+  autoscaling_group_name = aws_autoscaling_group.webapp_autoScaling_grp.name
+  scaling_adjustment     = 1
+  adjustment_type        = "ChangeInCapacity"
+}
+resource "aws_autoscaling_policy" "scale_down_policy" {
+  name                   = "scale_down_policy"
+  policy_type            = "SimpleScaling"
+  autoscaling_group_name = aws_autoscaling_group.webapp_autoScaling_grp.name
+  scaling_adjustment     = -1
+  adjustment_type        = "ChangeInCapacity"
+}
+
+resource "aws_cloudwatch_log_group" "csye6225_log_group" {
+  name = "csye6225"
+}
+
+resource "aws_cloudwatch_log_stream" "csye6225_log_stream" {
+  log_group_name = aws_cloudwatch_log_group.csye6225_log_group.name
+  name           = "webapp"
 }
