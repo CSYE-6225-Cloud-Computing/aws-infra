@@ -414,9 +414,9 @@ resource "aws_autoscaling_group" "webapp_autoScaling_grp" {
   default_cooldown = 60
   launch_template {
     version = "$Latest"
-    name = aws_launch_template.webapp_template.name
+    name    = aws_launch_template.webapp_template.name
   }
-  target_group_arns = [aws_lb_target_group.webapp_target.arn]
+  target_group_arns   = [aws_lb_target_group.webapp_target.arn]
   vpc_zone_identifier = [aws_subnet.public_subnet[0].id]
 }
 
