@@ -51,3 +51,12 @@ var.region 
     Enter a value: us-east-1 || us-west-2
 
 ```
+
+## Commands to import certificates
+
+aws acm import-certificate \
+--certificate fileb://demo_mahithchigurupati_me.crt \
+--certificate-chain fileb://demo_mahithchigurupati_me.ca-bundle \
+--private-key fileb://private.key \
+--region us-east-1 \
+--profile demo

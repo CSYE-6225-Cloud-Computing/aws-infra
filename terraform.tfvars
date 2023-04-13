@@ -8,7 +8,7 @@ private_availability_zones = 3
 
 vpc_id = 1
 
-profile = "dev"
+profile = "demo"
 
 db_engine   = "postgres"
 db_version  = "14"
